@@ -2,32 +2,21 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 
-interface AirtableAttachment {
-  id: string;
-  url: string;
-  filename: string;
-  type: string;
-  thumbnails?: {
-    small?: { url: string };
-    large?: { url: string };
-  };
-}
-
 interface Record {
   id: string;
   fields: {
+    'Issue ID': number;
     Issue: string;
-    Description: string;
-    Screenshot?: AirtableAttachment[];
     Dimension: string;
     Theme: string;
+    Severity: string;
     Decision: string;
     Resolution: string;
     Comments: string;
   };
 }
 
-type SortField = 'Issue' | 'Description' | 'Dimension' | 'Theme' | 'Decision' | 'Resolution' | 'Comments';
+type SortField = 'Issue ID' | 'Issue' | 'Dimension' | 'Theme' | 'Severity' | 'Decision' | 'Resolution' | 'Comments';
 type SortDirection = 'asc' | 'desc';
 
 const DECISION_OPTIONS = ['Accepted', 'Rejected'] as const;
@@ -48,29 +37,25 @@ const DIMENSION_ORDER = [
 ];
 
 function getDecisionClass(decision: string): string {
-  switch (decision) {
-    case 'Accepted':
-      return 'bg-green-100 text-green-800';
-    case 'Rejected':
-      return 'bg-red-100 text-red-800';
-    default:
-      return 'bg-gray-100 text-gray-800';
-  }
+  if (decision === 'Accepted') return 'bg-green-100 text-green-800';
+  if (decision === 'Rejected') return 'bg-red-100 text-red-800';
+  return 'bg-gray-100 text-gray-800';
 }
 
 function getResolutionClass(resolution: string): string {
-  switch (resolution) {
-    case 'Not Planned Yet':
-      return 'bg-amber-100 text-amber-800';
-    case 'Planned':
-      return 'bg-blue-100 text-blue-800';
-    case 'Completed':
-      return 'bg-green-100 text-green-800';
-    case 'Redirected':
-      return 'bg-purple-100 text-purple-800';
-    default:
-      return 'bg-gray-100 text-gray-800';
-  }
+  if (resolution === 'Completed') return 'bg-blue-100 text-blue-800';
+  if (resolution === 'Planned') return 'bg-green-100 text-green-800';
+  if (resolution === 'Not Planned Yet') return 'bg-yellow-100 text-yellow-800';
+  if (resolution === 'Redirected') return 'bg-purple-100 text-purple-800';
+  return 'bg-gray-100 text-gray-800';
+}
+
+function getSeverityClass(severity: string): string {
+  const s = severity?.toLowerCase();
+  if (s === 'high' || s === 'critical') return 'bg-red-100 text-red-800';
+  if (s === 'medium') return 'bg-yellow-100 text-yellow-800';
+  if (s === 'low') return 'bg-green-100 text-green-800';
+  return 'bg-gray-100 text-gray-800';
 }
 
 function SortIcon({ direction, active }: { direction: SortDirection; active: boolean }) {
@@ -83,39 +68,59 @@ function SortIcon({ direction, active }: { direction: SortDirection; active: boo
 
 function AddCommentIcon() {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      className="h-5 w-5 text-gray-300 hover:text-gray-500 transition-colors mx-auto"
-      fill="none"
+    <svg 
+      className="w-5 h-5 text-gray-300 hover:text-gray-400 transition-colors" 
+      fill="none" 
+      stroke="currentColor" 
       viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={1.5}
     >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+      <path 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+        strokeWidth={1.5} 
+        d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" 
       />
     </svg>
   );
 }
 
+function NavArrow({ direction, disabled, onClick }: { direction: 'left' | 'right'; disabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+        disabled 
+          ? 'text-gray-200 cursor-not-allowed' 
+          : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+      }`}
+    >
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {direction === 'left' ? (
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        ) : (
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        )}
+      </svg>
+    </button>
+  );
+}
+
 export default function Home() {
   const [records, setRecords] = useState<Record[]>([]);
+  const [baseName, setBaseName] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [sortField, setSortField] = useState<SortField>('Dimension');
+  const [sortField, setSortField] = useState<SortField>('Issue ID');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selectedRecord, setSelectedRecord] = useState<Record | null>(null);
-  const [editingComments, setEditingComments] = useState('');
-  const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
-  const [baseName, setBaseName] = useState<string>('');
+  const [editingComments, setEditingComments] = useState<string>('');
   const [focusComments, setFocusComments] = useState(false);
-  const commentsTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const commentsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const commentsTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     fetchRecords();
@@ -123,11 +128,30 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setSelectedRecord(null);
+      }
+    }
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, []);
+
+  useEffect(() => {
     if (selectedRecord) {
       setEditingComments(selectedRecord.fields.Comments || '');
-      if (!focusComments && panelRef.current) {
+      
+      if (panelRef.current) {
         panelRef.current.scrollTop = 0;
       }
+      
       if (focusComments) {
         setTimeout(() => {
           if (commentsTextareaRef.current) {
@@ -152,127 +176,36 @@ export default function Home() {
     }
   }, [focusComments]);
 
-  async function fetchBaseName() {
-    try {
-      const res = await fetch('/api/base');
-      if (res.ok) {
-        const data = await res.json();
-        setBaseName(data.name || '');
-      }
-    } catch (e) {
-      // Silently fail
-    }
-  }
-
-  async function fetchRecords() {
-    try {
-      const res = await fetch('/api/records');
-      if (!res.ok) throw new Error('Failed to fetch');
-      const data = await res.json();
-      setRecords(data.records);
-    } catch (err) {
-      setError('Failed to load records from Airtable');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function showToast(message: string, type: 'success' | 'error') {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  }
-
-  async function updateRecord(recordId: string, fields: Partial<Record['fields']>) {
-    const previousRecords = [...records];
-
-    // Optimistic update
-    setRecords((prev) =>
-      prev.map((r) =>
-        r.id === recordId ? { ...r, fields: { ...r.fields, ...fields } } : r
-      )
-    );
-    if (selectedRecord?.id === recordId) {
-      setSelectedRecord((prev) =>
-        prev ? { ...prev, fields: { ...prev.fields, ...fields } } : prev
-      );
-    }
-
-    setSavingIds((prev) => new Set(prev).add(recordId));
-
-    try {
-      const res = await fetch(`/api/records/${recordId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(fields),
-      });
-
-      if (!res.ok) throw new Error('Failed to update');
-      showToast('Saved', 'success');
-    } catch (err) {
-      setRecords(previousRecords);
-      if (selectedRecord?.id === recordId) {
-        const original = previousRecords.find((r) => r.id === recordId);
-        if (original) setSelectedRecord(original);
-      }
-      showToast('Failed to save', 'error');
-    } finally {
-      setSavingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(recordId);
-        return next;
-      });
-    }
-  }
-
-  function handleCommentsChange(value: string) {
-    setEditingComments(value);
-    if (commentsTimeoutRef.current) clearTimeout(commentsTimeoutRef.current);
-    commentsTimeoutRef.current = setTimeout(() => {
-      if (selectedRecord) {
-        updateRecord(selectedRecord.id, { Comments: value });
-      }
-    }, 1000);
-  }
-
-  function handleDecisionChange(recordId: string, value: string) {
-    const fields: Partial<Record['fields']> = { Decision: value };
-    // If decision changes to Rejected, clear Resolution
-    if (value === 'Rejected') {
-      fields.Resolution = '';
-    }
-    updateRecord(recordId, fields);
-  }
-
   const sortedRecords = useMemo(() => {
     return [...records].sort((a, b) => {
-      let aVal = a.fields[sortField] || '';
-      let bVal = b.fields[sortField] || '';
+      const aVal = a.fields[sortField] || '';
+      const bVal = b.fields[sortField] || '';
 
       if (sortField === 'Dimension') {
-        const aIndex = DIMENSION_ORDER.indexOf(aVal);
-        const bIndex = DIMENSION_ORDER.indexOf(bVal);
+        const aIndex = DIMENSION_ORDER.indexOf(String(aVal));
+        const bIndex = DIMENSION_ORDER.indexOf(String(bVal));
         const aOrder = aIndex === -1 ? 999 : aIndex;
         const bOrder = bIndex === -1 ? 999 : bIndex;
         return sortDirection === 'asc' ? aOrder - bOrder : bOrder - aOrder;
       }
 
-      if (sortField === 'Issue') {
-        const aNum = parseInt(aVal, 10) || 0;
-        const bNum = parseInt(bVal, 10) || 0;
+      if (sortField === 'Issue ID') {
+        const aNum = Number(aVal) || 0;
+        const bNum = Number(bVal) || 0;
         return sortDirection === 'asc' ? aNum - bNum : bNum - aNum;
       }
 
       if (sortDirection === 'asc') {
-        return aVal.localeCompare(bVal);
+        return String(aVal).localeCompare(String(bVal));
       } else {
-        return bVal.localeCompare(aVal);
+        return String(bVal).localeCompare(String(aVal));
       }
     });
   }, [records, sortField, sortDirection]);
 
   const currentIndex = useMemo(() => {
     if (!selectedRecord) return -1;
-    return sortedRecords.findIndex((r) => r.id === selectedRecord.id);
+    return sortedRecords.findIndex(r => r.id === selectedRecord.id);
   }, [selectedRecord, sortedRecords]);
 
   const canGoPrevious = currentIndex > 0;
@@ -308,216 +241,288 @@ export default function Home() {
     }
   }
 
-  function closePanel() {
-    if (commentsTimeoutRef.current) {
-      clearTimeout(commentsTimeoutRef.current);
-      if (selectedRecord && editingComments !== (selectedRecord.fields.Comments || '')) {
-        updateRecord(selectedRecord.id, { Comments: editingComments });
-      }
+  async function fetchBaseName() {
+    try {
+      const response = await fetch('/api/base');
+      if (!response.ok) return;
+      const data = await response.json();
+      setBaseName(data.name || '');
+    } catch (err) {
+      console.error('Failed to fetch base name:', err);
     }
-    setSelectedRecord(null);
-    setFocusComments(false);
   }
 
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        if (enlargedImage) {
-          setEnlargedImage(null);
-        } else if (selectedRecord) {
-          closePanel();
-        }
-      }
+  async function fetchRecords() {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/records');
+      if (!response.ok) throw new Error('Failed to fetch records');
+      const data = await response.json();
+      const filtered = data.records.filter(
+        (record: Record) => record.fields.Dimension && record.fields.Dimension.trim() !== ''
+      );
+      setRecords(filtered);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
     }
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedRecord, enlargedImage, editingComments]);
+  }
+
+  async function updateRecord(recordId: string, updates: { Decision?: string; Resolution?: string; Comments?: string }) {
+    setSavingIds((prev) => new Set(prev).add(recordId));
+
+    setRecords((prev) =>
+      prev.map((record) =>
+        record.id === recordId
+          ? { ...record, fields: { ...record.fields, ...updates } }
+          : record
+      )
+    );
+
+    if (selectedRecord && selectedRecord.id === recordId) {
+      setSelectedRecord({
+        ...selectedRecord,
+        fields: { ...selectedRecord.fields, ...updates },
+      });
+    }
+
+    try {
+      const response = await fetch(`/api/records/${recordId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) throw new Error('Failed to update record');
+
+      setToast({ message: 'Saved successfully', type: 'success' });
+    } catch (err) {
+      fetchRecords();
+      setToast({ message: 'Failed to save', type: 'error' });
+    } finally {
+      setSavingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(recordId);
+        return next;
+      });
+    }
+  }
+
+  function handleDecisionChange(recordId: string, value: string) {
+    const fields: Partial<Record['fields']> = { Decision: value };
+    if (value === 'Rejected') {
+      fields.Resolution = '';
+    }
+    updateRecord(recordId, fields);
+  }
+
+  function handleCommentsChange(value: string) {
+    setEditingComments(value);
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(() => {
+      if (selectedRecord) {
+        updateRecord(selectedRecord.id, { Comments: value });
+      }
+    }, 1000);
+  }
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex items-center gap-3">
           <svg
-            className="spinner h-8 w-8 text-blue-500 mx-auto mb-4"
+            className="spinner h-5 w-5 text-gray-500"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
           >
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
             <path
               className="opacity-75"
               fill="currentColor"
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             />
           </svg>
-          <p className="text-gray-500">Loading issues...</p>
+          <span className="text-gray-600">Loading records...</span>
         </div>
-      </main>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <main className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-500 mb-4">{error}</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
+          <h2 className="text-red-800 font-semibold mb-2">Error</h2>
+          <p className="text-red-600">{error}</p>
           <button
-            onClick={() => {
-              setError(null);
-              setLoading(true);
-              fetchRecords();
-            }}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+            onClick={fetchRecords}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
           >
-            Retry
+            Try again
           </button>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
-      <style jsx global>{`
-        .spinner {
-          animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .status-dropdown {
-          -webkit-appearance: none;
-          -moz-appearance: none;
-          appearance: none;
-          background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-          background-repeat: no-repeat;
-          background-position: right 8px center;
-          background-size: 14px;
-          padding-right: 28px;
-        }
-      `}</style>
-
-      {/* Toast */}
+    <main className="min-h-screen p-8">
       {toast && (
         <div
-          className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow-lg text-white text-sm font-medium transition-all ${
-            toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+          className={`fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg toast-enter z-50 ${
+            toast.type === 'success'
+              ? 'bg-green-50 border border-green-200 text-green-800'
+              : 'bg-red-50 border border-red-200 text-red-800'
           }`}
         >
           {toast.message}
         </div>
       )}
 
-      {/* Enlarged image modal */}
-      {enlargedImage && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-8 cursor-pointer"
-          onClick={() => setEnlargedImage(null)}
-        >
-          <img src={enlargedImage} alt="Enlarged screenshot" className="max-w-full max-h-full object-contain" />
-        </div>
-      )}
-
-      {/* Side panel */}
       {selectedRecord && (
         <>
-          <div className="fixed inset-0 bg-black bg-opacity-20 z-30" onClick={closePanel} />
           <div
+            className="fixed inset-0 bg-black/30 z-40"
+            onClick={() => setSelectedRecord(null)}
+          />
+          <div 
             ref={panelRef}
-            className="fixed top-0 right-0 h-full w-full max-w-lg bg-white shadow-2xl z-40 overflow-y-auto"
+            className="fixed right-0 top-0 h-full w-full max-w-lg bg-white shadow-2xl z-50 overflow-y-auto"
           >
-            <div className="p-6 space-y-5">
-              {/* Header with close + navigation */}
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0 pr-4">
-                  <h2 className="text-lg font-semibold text-gray-900 break-words">
-                    {selectedRecord.fields.Issue}
-                  </h2>
-                  <div className="flex items-center gap-2 mt-2 text-sm text-gray-500">
-                    <button
-                      onClick={goToPrevious}
-                      disabled={!canGoPrevious}
-                      className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                      title="Previous issue"
-                    >
-                      ←
-                    </button>
-                    <span>
-                      {currentIndex + 1} / {sortedRecords.length}
-                    </span>
-                    <button
-                      onClick={goToNext}
-                      disabled={!canGoNext}
-                      className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                      title="Next issue"
-                    >
-                      →
-                    </button>
-                  </div>
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Issue #{selectedRecord.fields['Issue ID']}
+                </h2>
+                <div className="flex items-center gap-1">
+                  {savingIds.has(selectedRecord.id) && (
+                    <span className="text-xs text-gray-400 mr-2">Saving...</span>
+                  )}
+                  <button
+                    onClick={() => setSelectedRecord(null)}
+                    className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors"
+                  >
+                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
-                <button
-                  onClick={closePanel}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
-                >
-                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+              </div>
+              <div className="flex items-center justify-between mt-3">
+                <div className="flex items-center gap-2">
+                  <span className={`inline-block text-sm font-medium px-3 py-1 rounded-full ${getDecisionClass(selectedRecord.fields.Decision || '')}`}>
+                    {selectedRecord.fields.Decision || 'No decision'}
+                  </span>
+                  {selectedRecord.fields.Decision === 'Accepted' && selectedRecord.fields.Resolution && (
+                    <span className={`inline-block text-sm font-medium px-3 py-1 rounded-full ${getResolutionClass(selectedRecord.fields.Resolution)}`}>
+                      {selectedRecord.fields.Resolution}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  <NavArrow direction="left" disabled={!canGoPrevious} onClick={goToPrevious} />
+                  <span className="text-xs text-gray-400 mx-1">
+                    {currentIndex + 1} / {sortedRecords.length}
+                  </span>
+                  <NavArrow direction="right" disabled={!canGoNext} onClick={goToNext} />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                  Issue Title
+                </label>
+                <p className="text-gray-900 font-medium">
+                  {selectedRecord.fields.Issue || 'No title'}
+                </p>
               </div>
 
-              {/* Decision and Resolution dropdowns (primary action area) */}
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                    Decision
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                    Dimension
                   </label>
-                  <select
-                    value={selectedRecord.fields.Decision || ''}
-                    onChange={(e) => handleDecisionChange(selectedRecord.id, e.target.value)}
-                    disabled={savingIds.has(selectedRecord.id)}
-                    className={`w-full status-dropdown text-sm font-medium px-3 py-2 rounded-lg border border-gray-300 cursor-pointer focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-wait ${getDecisionClass(selectedRecord.fields.Decision || '')}`}
-                  >
-                    <option value="" disabled>
-                      Select decision
-                    </option>
-                    {DECISION_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
+                  <span className="inline-block bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full">
+                    {selectedRecord.fields.Dimension}
+                  </span>
                 </div>
 
+                <div className="flex-1">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                    Theme
+                  </label>
+                  <span className="inline-block bg-purple-100 text-purple-800 text-sm font-medium px-3 py-1 rounded-full">
+                    {selectedRecord.fields.Theme || 'No theme'}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                  Severity
+                </label>
+                <span className={`inline-block text-sm font-medium px-3 py-1 rounded-full ${getSeverityClass(selectedRecord.fields.Severity || '')}`}>
+                  {selectedRecord.fields.Severity || 'Not set'}
+                </span>
+              </div>
+
+              <div className="pt-4 border-t border-gray-200">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                  Decision
+                </label>
+                <select
+                  value={selectedRecord.fields.Decision || ''}
+                  onChange={(e) => handleDecisionChange(selectedRecord.id, e.target.value)}
+                  disabled={savingIds.has(selectedRecord.id)}
+                  className={`w-full px-4 py-2 rounded-lg border border-gray-300 cursor-pointer focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 ${getDecisionClass(selectedRecord.fields.Decision || '')}`}
+                >
+                  <option value="">Select decision</option>
+                  {DECISION_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedRecord.fields.Decision === 'Accepted' && (
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
                     Resolution
                   </label>
                   <select
                     value={selectedRecord.fields.Resolution || ''}
                     onChange={(e) => updateRecord(selectedRecord.id, { Resolution: e.target.value })}
-                    disabled={savingIds.has(selectedRecord.id) || selectedRecord.fields.Decision !== 'Accepted'}
-                    className={`w-full status-dropdown text-sm font-medium px-3 py-2 rounded-lg border border-gray-300 cursor-pointer focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-wait ${
-                      selectedRecord.fields.Decision === 'Accepted'
-                        ? getResolutionClass(selectedRecord.fields.Resolution || '')
-                        : 'bg-gray-50 text-gray-400'
-                    }`}
+                    disabled={savingIds.has(selectedRecord.id)}
+                    className={`w-full px-4 py-2 rounded-lg border border-gray-300 cursor-pointer focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 ${getResolutionClass(selectedRecord.fields.Resolution || '')}`}
                   >
-                    <option value="" disabled>
-                      {selectedRecord.fields.Decision === 'Accepted' ? 'Select resolution' : 'Requires accepted decision'}
-                    </option>
-                    {RESOLUTION_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
+                    <option value="">Select resolution</option>
+                    {RESOLUTION_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
                       </option>
                     ))}
                   </select>
                 </div>
-              </div>
+              )}
 
-              {/* Comments */}
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
                   Comments
                 </label>
                 <textarea
@@ -530,67 +535,11 @@ export default function Home() {
                 />
                 <p className="text-xs text-gray-400 mt-1">Auto-saves after you stop typing</p>
               </div>
-
-              {/* Separator */}
-              <div className="border-t border-gray-200" />
-
-              {/* Read-only fields */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-                  Dimension
-                </label>
-                <p className="text-sm text-gray-900">{selectedRecord.fields.Dimension || '—'}</p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-                  Theme
-                </label>
-                <p className="text-sm text-gray-900">{selectedRecord.fields.Theme || '—'}</p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-                  Description
-                </label>
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                  {selectedRecord.fields.Description || '—'}
-                </p>
-              </div>
-
-              {/* Screenshot */}
-              {selectedRecord.fields.Screenshot && selectedRecord.fields.Screenshot.length > 0 && (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                    Screenshot
-                  </label>
-                  <button
-                    onClick={() =>
-                      setEnlargedImage(
-                        selectedRecord.fields.Screenshot![0].thumbnails?.large?.url ||
-                          selectedRecord.fields.Screenshot![0].url
-                      )
-                    }
-                    className="block w-full rounded-lg overflow-hidden border border-gray-200 hover:border-gray-300 transition-colors"
-                  >
-                    <img
-                      src={
-                        selectedRecord.fields.Screenshot[0].thumbnails?.large?.url ||
-                          selectedRecord.fields.Screenshot[0].url
-                      }
-                      alt="Screenshot"
-                      className="w-full h-auto object-contain"
-                    />
-                  </button>
-                  <p className="text-xs text-gray-400 mt-1">Click to enlarge</p>
-                </div>
-              )}
             </div>
           </div>
         </>
       )}
 
-      {/* Page header */}
       <div className="max-w-7xl mx-auto mb-8">
         {baseName && (
           <p className="text-sm font-semibold tracking-wide mb-1" style={{ color: '#0070F2' }}>
@@ -599,32 +548,28 @@ export default function Home() {
         )}
         <h1 className="text-2xl font-semibold text-gray-900">Issue Status Editor</h1>
         <p className="text-gray-500 mt-1">
-          {sortedRecords.length} issue{sortedRecords.length !== 1 ? 's' : ''} found. Click a row to see details.
+          {sortedRecords.length} issue{sortedRecords.length !== 1 ? 's' : ''} found. Click a row to see details and edit.
         </p>
       </div>
 
-      {/* Table */}
       <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th
+                  onClick={() => handleSort('Issue ID')}
+                  className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  ID
+                  <SortIcon direction={sortDirection} active={sortField === 'Issue ID'} />
+                </th>
+                <th
                   onClick={() => handleSort('Issue')}
                   className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
                   Issue
                   <SortIcon direction={sortDirection} active={sortField === 'Issue'} />
-                </th>
-                <th
-                  onClick={() => handleSort('Description')}
-                  className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                >
-                  Description
-                  <SortIcon direction={sortDirection} active={sortField === 'Description'} />
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Screenshot
                 </th>
                 <th
                   onClick={() => handleSort('Dimension')}
@@ -639,6 +584,13 @@ export default function Home() {
                 >
                   Theme
                   <SortIcon direction={sortDirection} active={sortField === 'Theme'} />
+                </th>
+                <th
+                  onClick={() => handleSort('Severity')}
+                  className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  Severity
+                  <SortIcon direction={sortDirection} active={sortField === 'Severity'} />
                 </th>
                 <th
                   onClick={() => handleSort('Decision')}
@@ -656,106 +608,61 @@ export default function Home() {
                 </th>
                 <th
                   onClick={() => handleSort('Comments')}
-                  className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
                   Comments
                   <SortIcon direction={sortDirection} active={sortField === 'Comments'} />
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100">
               {sortedRecords.map((record) => (
                 <tr
                   key={record.id}
-                  onClick={() => selectRecord(record)}
-                  className={`border-b border-gray-100 cursor-pointer transition-colors ${
-                    selectedRecord?.id === record.id ? 'bg-gray-100' : 'hover:bg-gray-50'
+                  onClick={() => selectRecord(record, false)}
+                  className={`transition-colors cursor-pointer ${
+                    selectedRecord?.id === record.id
+                      ? 'bg-gray-100'
+                      : 'hover:bg-gray-50'
                   }`}
                 >
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
-                    {record.fields.Issue}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
-                    {record.fields.Description}
+                  <td className="px-6 py-4">
+                    <span className="font-medium text-gray-900">
+                      {record.fields['Issue ID'] || '—'}
+                    </span>
                   </td>
                   <td className="px-6 py-4">
-                    {record.fields.Screenshot && record.fields.Screenshot.length > 0 && (
-                      <img
-                        src={record.fields.Screenshot[0].thumbnails?.small?.url || record.fields.Screenshot[0].url}
-                        alt="thumb"
-                        className="h-8 w-12 object-cover rounded border border-gray-200"
-                      />
-                    )}
+                    <span className="text-gray-600 text-sm line-clamp-2 max-w-xs">
+                      {record.fields.Issue || '—'}
+                    </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
-                    {record.fields.Dimension}
+                  <td className="px-6 py-4">
+                    <span className="text-gray-600 text-sm">
+                      {record.fields.Dimension || '—'}
+                    </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
-                    {record.fields.Theme}
+                  <td className="px-6 py-4">
+                    <span className="text-gray-600 text-sm">
+                      {record.fields.Theme || '—'}
+                    </span>
                   </td>
-                  <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                    <div className="relative inline-block">
-                      <select
-                        value={record.fields.Decision || ''}
-                        onChange={(e) => handleDecisionChange(record.id, e.target.value)}
-                        disabled={savingIds.has(record.id)}
-                        className={`status-dropdown text-sm font-medium px-3 py-1.5 rounded-full border-0 cursor-pointer focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-wait ${getDecisionClass(
-                          record.fields.Decision || ''
-                        )}`}
-                      >
-                        <option value="" disabled>
-                          Select
-                        </option>
-                        {DECISION_OPTIONS.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
-                      {savingIds.has(record.id) && (
-                        <div className="absolute right-8 top-1/2 -translate-y-1/2">
-                          <svg
-                            className="spinner h-4 w-4 text-gray-400"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            />
-                          </svg>
-                        </div>
-                      )}
-                    </div>
+                  <td className="px-6 py-4">
+                    <span className={`inline-block text-xs font-medium px-2 py-1 rounded-full ${getSeverityClass(record.fields.Severity || '')}`}>
+                      {record.fields.Severity || '—'}
+                    </span>
                   </td>
-                  <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                    <div className="relative inline-block">
-                      <select
-                        value={record.fields.Resolution || ''}
-                        onChange={(e) => updateRecord(record.id, { Resolution: e.target.value })}
-                        disabled={savingIds.has(record.id) || record.fields.Decision !== 'Accepted'}
-                        className={`status-dropdown text-sm font-medium px-3 py-1.5 rounded-full border-0 cursor-pointer focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-wait ${
-                          record.fields.Decision === 'Accepted'
-                            ? getResolutionClass(record.fields.Resolution || '')
-                            : 'bg-gray-50 text-gray-400'
-                        }`}
-                      >
-                        <option value="" disabled>
-                          {record.fields.Decision === 'Accepted' ? 'Select' : '—'}
-                        </option>
-                        {RESOLUTION_OPTIONS.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  <td className="px-6 py-4">
+                    <span className={`inline-block text-xs font-medium px-2 py-1 rounded-full ${getDecisionClass(record.fields.Decision || '')}`}>
+                      {record.fields.Decision || '—'}
+                    </span>
                   </td>
-                  <td
-                    className="px-6 py-4 text-center"
+                  <td className="px-6 py-4">
+                    <span className={`inline-block text-xs font-medium px-2 py-1 rounded-full ${getResolutionClass(record.fields.Resolution || '')}`}>
+                      {record.fields.Resolution || '—'}
+                    </span>
+                  </td>
+                  <td 
+                    className="px-6 py-4"
                     onClick={(e) => {
                       e.stopPropagation();
                       selectRecord(record, true);
