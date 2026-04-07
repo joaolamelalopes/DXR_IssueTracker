@@ -523,8 +523,9 @@ export default function Home() {
           >
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Issue #{selectedRecord.fields['Issue ID']}
+                <h2 className="text-lg font-semibold text-gray-900 flex-1 pr-4">
+                  <span className="text-gray-400">#{selectedRecord.fields['Issue ID']}</span>{' '}
+                  {selectedRecord.fields.Issue || 'No title'}
                 </h2>
                 <div className="flex items-center gap-1">
                   {savingIds.has(selectedRecord.id) && (
@@ -562,81 +563,8 @@ export default function Home() {
             </div>
 
             <div className="p-6 space-y-6">
+              {/* Decision, Resolution, Comments section */}
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                  Issue Title
-                </label>
-                <p className="text-gray-900 font-medium">
-                  {selectedRecord.fields.Issue || 'No title'}
-                </p>
-              </div>
-
-              {selectedRecord.fields.Description && (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                    Description
-                  </label>
-                  <p className="text-gray-700 text-sm whitespace-pre-wrap">
-                    {selectedRecord.fields.Description}
-                  </p>
-                </div>
-              )}
-
-              {selectedRecord.fields.Screenshot && selectedRecord.fields.Screenshot.length > 0 && (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                    Screenshot{selectedRecord.fields.Screenshot.length > 1 ? 's' : ''}
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedRecord.fields.Screenshot.map((attachment) => (
-                      <a
-                        key={attachment.id}
-                        href={attachment.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block border border-gray-200 rounded-lg overflow-hidden hover:border-blue-400 transition-colors"
-                      >
-                        <img
-                          src={attachment.thumbnails?.large?.url || attachment.url}
-                          alt={attachment.filename}
-                          className="max-w-full h-auto max-h-48 object-contain"
-                        />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                    Dimension
-                  </label>
-                  <span className="inline-block bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full">
-                    {selectedRecord.fields.Dimension}
-                  </span>
-                </div>
-
-                <div className="flex-1">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                    Theme
-                  </label>
-                  <span className="inline-block bg-purple-100 text-purple-800 text-sm font-medium px-3 py-1 rounded-full">
-                    {selectedRecord.fields.Theme || 'No theme'}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                  Severity
-                </label>
-                <span className={`inline-block text-sm font-medium px-3 py-1 rounded-full ${getSeverityClass(selectedRecord.fields.Severity || '')}`}>
-                  {selectedRecord.fields.Severity || 'Not set'}
-                </span>
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
                   Decision
                 </label>
@@ -711,6 +639,75 @@ export default function Home() {
                 />
                 <p className="text-xs text-gray-400 mt-1">Auto-saves after you stop typing</p>
               </div>
+
+              {/* Separator */}
+              <div className="border-t border-gray-200"></div>
+
+              {/* Issue Details section */}
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                    Dimension
+                  </label>
+                  <span className="inline-block bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full">
+                    {selectedRecord.fields.Dimension}
+                  </span>
+                </div>
+
+                <div className="flex-1">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                    Theme
+                  </label>
+                  <span className="inline-block bg-purple-100 text-purple-800 text-sm font-medium px-3 py-1 rounded-full">
+                    {selectedRecord.fields.Theme || 'No theme'}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                  Severity
+                </label>
+                <span className={`inline-block text-sm font-medium px-3 py-1 rounded-full ${getSeverityClass(selectedRecord.fields.Severity || '')}`}>
+                  {selectedRecord.fields.Severity || 'Not set'}
+                </span>
+              </div>
+
+              {selectedRecord.fields.Description && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                    Description
+                  </label>
+                  <p className="text-gray-700 text-sm whitespace-pre-wrap">
+                    {selectedRecord.fields.Description}
+                  </p>
+                </div>
+              )}
+
+              {selectedRecord.fields.Screenshot && selectedRecord.fields.Screenshot.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                    Screenshot{selectedRecord.fields.Screenshot.length > 1 ? 's' : ''}
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedRecord.fields.Screenshot.map((attachment) => (
+                      <a
+                        key={attachment.id}
+                        href={attachment.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block border border-gray-200 rounded-lg overflow-hidden hover:border-blue-400 transition-colors"
+                      >
+                        <img
+                          src={attachment.thumbnails?.large?.url || attachment.url}
+                          alt={attachment.filename}
+                          className="max-w-full h-auto max-h-48 object-contain"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </>
