@@ -33,7 +33,7 @@ const REJECTION_REASONS = [
   'Customer/partner generated',
   'Against guidelines',
   'Intentional deviation',
-  'Other (see Comments)',
+  'Other (leave a Comment)',
 ] as const;
 
 const DIMENSION_ORDER = [
