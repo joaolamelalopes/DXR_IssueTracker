@@ -15,7 +15,7 @@ export async function GET() {
 
     await base(TABLE_NAME)
       .select({
-        fields: ['Issue ID', 'Issue', 'Dimension', 'Theme', 'Severity', 'Decision', 'Resolution', 'Comments'],
+        fields: ['Issue ID', 'Issue', 'Description', 'Screenshot', 'Dimension', 'Theme', 'Severity', 'Decision', 'Resolution', 'Comments'],
       })
       .eachPage((pageRecords, fetchNextPage) => {
         pageRecords.forEach((record) => {
