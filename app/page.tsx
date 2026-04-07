@@ -238,6 +238,7 @@ export default function Home() {
   const [selectedRecord, setSelectedRecord] = useState<Record | null>(null);
   const [editingComments, setEditingComments] = useState<string>('');
   const [focusComments, setFocusComments] = useState(false);
+  const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const commentsTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -257,12 +258,16 @@ export default function Home() {
   useEffect(() => {
     function handleEscape(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        setSelectedRecord(null);
+        if (enlargedImage) {
+          setEnlargedImage(null);
+        } else {
+          setSelectedRecord(null);
+        }
       }
     }
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, []);
+  }, [enlargedImage]);
 
   useEffect(() => {
     if (selectedRecord) {
@@ -691,19 +696,17 @@ export default function Home() {
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {selectedRecord.fields.Screenshot.map((attachment) => (
-                      <a
+                      <button
                         key={attachment.id}
-                        href={attachment.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block border border-gray-200 rounded-lg overflow-hidden hover:border-blue-400 transition-colors"
+                        onClick={() => setEnlargedImage(attachment.url)}
+                        className="block border border-gray-200 rounded-lg overflow-hidden hover:border-blue-400 transition-colors cursor-zoom-in"
                       >
                         <img
                           src={attachment.thumbnails?.large?.url || attachment.url}
                           alt={attachment.filename}
                           className="max-w-full h-auto max-h-48 object-contain"
                         />
-                      </a>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -711,6 +714,29 @@ export default function Home() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Image lightbox modal */}
+      {enlargedImage && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4"
+          onClick={() => setEnlargedImage(null)}
+        >
+          <button
+            onClick={() => setEnlargedImage(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+          >
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <img
+            src={enlargedImage}
+            alt="Enlarged screenshot"
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
       )}
 
       <div className="max-w-7xl mx-auto mb-6">
