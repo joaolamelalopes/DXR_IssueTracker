@@ -2,11 +2,24 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 
+interface AirtableAttachment {
+  id: string;
+  url: string;
+  filename: string;
+  type: string;
+  thumbnails?: {
+    small?: { url: string };
+    large?: { url: string };
+  };
+}
+
 interface Record {
   id: string;
   fields: {
     'Issue ID': number;
     Issue: string;
+    Description: string;
+    Screenshot?: AirtableAttachment[];
     Dimension: string;
     Theme: string;
     Severity: string;
@@ -557,6 +570,42 @@ export default function Home() {
                   {selectedRecord.fields.Issue || 'No title'}
                 </p>
               </div>
+
+              {selectedRecord.fields.Description && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                    Description
+                  </label>
+                  <p className="text-gray-700 text-sm whitespace-pre-wrap">
+                    {selectedRecord.fields.Description}
+                  </p>
+                </div>
+              )}
+
+              {selectedRecord.fields.Screenshot && selectedRecord.fields.Screenshot.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                    Screenshot{selectedRecord.fields.Screenshot.length > 1 ? 's' : ''}
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedRecord.fields.Screenshot.map((attachment) => (
+                      <a
+                        key={attachment.id}
+                        href={attachment.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block border border-gray-200 rounded-lg overflow-hidden hover:border-blue-400 transition-colors"
+                      >
+                        <img
+                          src={attachment.thumbnails?.large?.url || attachment.url}
+                          alt={attachment.filename}
+                          className="max-w-full h-auto max-h-48 object-contain"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-4">
                 <div className="flex-1">
