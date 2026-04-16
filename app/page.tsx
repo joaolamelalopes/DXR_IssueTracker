@@ -235,6 +235,7 @@ export default function Home() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [sortField, setSortField] = useState<SortField>('Issue ID');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [activeDimensions, setActiveDimensions] = useState<Set<string>>(new Set(DIMENSION_ORDER));
   const [selectedRecord, setSelectedRecord] = useState<Record | null>(null);
   const [editingComments, setEditingComments] = useState<string>('');
   const [focusComments, setFocusComments] = useState(false);
@@ -328,25 +329,29 @@ export default function Home() {
     });
   }, [records, sortField, sortDirection]);
 
+  const filteredRecords = useMemo(() => {
+    return sortedRecords.filter(r => activeDimensions.has(r.fields.Dimension));
+  }, [sortedRecords, activeDimensions]);
+
   const currentIndex = useMemo(() => {
     if (!selectedRecord) return -1;
-    return sortedRecords.findIndex(r => r.id === selectedRecord.id);
-  }, [selectedRecord, sortedRecords]);
+    return filteredRecords.findIndex(r => r.id === selectedRecord.id);
+  }, [selectedRecord, filteredRecords]);
 
   const canGoPrevious = currentIndex > 0;
-  const canGoNext = currentIndex < sortedRecords.length - 1 && currentIndex !== -1;
+  const canGoNext = currentIndex < filteredRecords.length - 1 && currentIndex !== -1;
 
   function goToPrevious() {
     if (canGoPrevious) {
       setFocusComments(false);
-      setSelectedRecord(sortedRecords[currentIndex - 1]);
+      setSelectedRecord(filteredRecords[currentIndex - 1]);
     }
   }
 
   function goToNext() {
     if (canGoNext) {
       setFocusComments(false);
-      setSelectedRecord(sortedRecords[currentIndex + 1]);
+      setSelectedRecord(filteredRecords[currentIndex + 1]);
     }
   }
 
@@ -355,6 +360,18 @@ export default function Home() {
       setFocusComments(true);
     }
     setSelectedRecord(record);
+  }
+
+  function toggleDimension(dimension: string) {
+    setActiveDimensions(prev => {
+      const next = new Set(prev);
+      if (next.has(dimension)) {
+        next.delete(dimension);
+      } else {
+        next.add(dimension);
+      }
+      return next;
+    });
   }
 
   function handleSort(field: SortField) {
@@ -560,7 +577,7 @@ export default function Home() {
                 <div className="flex items-center gap-1">
                   <NavArrow direction="left" disabled={!canGoPrevious} onClick={goToPrevious} />
                   <span className="text-xs text-gray-400 mx-1">
-                    {currentIndex + 1} / {sortedRecords.length}
+                    {currentIndex + 1} / {filteredRecords.length}
                   </span>
                   <NavArrow direction="right" disabled={!canGoNext} onClick={goToNext} />
                 </div>
@@ -747,11 +764,30 @@ export default function Home() {
           {baseName || 'Loading...'}
         </h1>
         <p className="text-gray-500 mt-1">
-          {sortedRecords.length} issue{sortedRecords.length !== 1 ? 's' : ''} found. Click a row to see details and edit.
+          {filteredRecords.length} issue{filteredRecords.length !== 1 ? 's' : ''} found. Click a row to see details and edit.
         </p>
       </div>
 
       <DefinitionsPanel />
+
+      <div className="max-w-7xl mx-auto mb-4 flex items-center gap-2">
+        {DIMENSION_ORDER.map((dimension) => {
+          const active = activeDimensions.has(dimension);
+          return (
+            <button
+              key={dimension}
+              onClick={() => toggleDimension(dimension)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                active
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-500 border-gray-300 hover:border-gray-400 hover:text-gray-700'
+              }`}
+            >
+              {dimension}
+            </button>
+          );
+        })}
+      </div>
 
       <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
@@ -817,7 +853,7 @@ export default function Home() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {sortedRecords.map((record) => (
+              {filteredRecords.map((record) => (
                 <tr
                   key={record.id}
                   onClick={() => selectRecord(record, false)}
